@@ -38,47 +38,66 @@ Todas las máquinas utilizan Debian y están conectadas a la LAN mediante el bri
 ## Arquitectura actual
 
 ```text
-                         Internet
-                            │
-                            ▼
-                          Router
-                    192.168.0.1/24
-                            │
-                            ▼
-                         Switch
-                            │
-                            ▼
-                    Dell OptiPlex 7060
-                         Proxmox VE
-                       192.168.0.2
-                            │
-                          vmbr0
-                            │
-        ┌───────────────────┼────────────────────┐
-        │                   │                    │
-        ▼                   ▼                    ▼
- srv-linux-01           docker-01          monitoring-01
- 192.168.0.3           192.168.0.4         192.168.0.5
-                                                │
-                                      Prometheus + Grafana
-                                                │
-                                                │ métricas
-                                                ▼
-                                       srv-minecraft-01
-                                         192.168.0.6
-                                                │
-                                                ▼
-                                        Docker + Forge
-                                                │
-                                           TCP 25565
-                                                │
-                                                ▼
-                                             Internet
+                              Internet
+                                 │
+                                 ▼
+                               Router
+                          192.168.0.1/24
+                                 │
+                                 ▼
+                               Switch
+                                 │
+                                 ▼
+                       Dell OptiPlex 7060
+                            Proxmox VE
+                          192.168.0.2
+                                 │
+                               vmbr0
+                                 │
+          ┌──────────────────────┼──────────────────────┐
+          │                      │                      │
+          │                      │                      │
+          ▼                      ▼                      ▼
+   srv-linux-01              docker-01           monitoring-01
+   192.168.0.3              192.168.0.4          192.168.0.5
+                                                    │
+                                             Docker Compose
+                                                    │
+                                          ┌─────────┴─────────┐
+                                          ▼                   ▼
+                                     Prometheus             Grafana
+                                          │
+                                          │ TCP 9100
+                                          │ métricas
+                                          │
+          ┌───────────────────────────────┘
+          │
+          ▼
+   srv-minecraft-01
+     192.168.0.6
+          │
+          ├── Node Exporter :9100
+          │
+          └── Docker
+                │
+                ▼
+          Minecraft Forge
+              :25565
+                │
+                │ NAT / Port Forwarding
+                ▼
+             Internet
 ```
 
-La arquitectura irá evolucionando a medida que se incorporen nuevos servicios, segmentación de red, copias de seguridad y acceso remoto seguro.
+Las cuatro máquinas virtuales se ejecutan de forma independiente dentro de Proxmox y están conectadas a la red local mediante `vmbr0`.
 
----
+`monitoring-01` centraliza la monitorización mediante Prometheus y Grafana. Prometheus consulta por red las métricas expuestas por Node Exporter en los servidores monitorizados.
+
+Actualmente `srv-minecraft-01` expone Node Exporter en el puerto `9100`, cuyo acceso mediante firewall está permitido únicamente desde `monitoring-01`.
+
+El servidor de Minecraft se ejecuta de forma independiente en `srv-minecraft-01`. El puerto `25565/tcp` se publica mediante Docker y el router redirige las conexiones externas hacia esta máquina mediante NAT/port forwarding.
+
+La arquitectura irá evolucionando a medida que se incorporen nuevos servicios, segmentación de red, copias de seguridad y acceso remoto seguro.
 
 ## Tecnologías utilizadas
 
